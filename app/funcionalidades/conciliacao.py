@@ -338,62 +338,25 @@ def exportar_para_excel_bytes(df1, df2):
 def conciliar_notas(file_fortaleza=None, file_vr=None, file_razao=None, progress_callback=None):
     logs = []
     def p(pct, msg=None):
-        if progress_callback:
-            try:
-                progress_callback(pct, msg)
-            except Exception:
-                pass
-    p(5, "Iniciando leitura de arquivos.")
-    if file_fortaleza is not None:
-        try:
-            df_fortaleza = preparar_dataframe_fortaleza(file_fortaleza)
-        except Exception as e:
-            df_fortaleza = pd.DataFrame()
-            logs.append(f"Erro ao processar Fortaleza: {e}")
-    else:
-        df_fortaleza = pd.DataFrame()
-        logs.append("Fortaleza não fornecido.")
-    if file_vr is not None:
-        try:
-            df_vr = preparar_dataframe_vr(file_vr)
-        except Exception as e:
-            df_vr = pd.DataFrame()
-            logs.append(f"Erro ao processar Volta Redonda: {e}")
-    else:
-        df_vr = pd.DataFrame()
-        logs.append("Volta Redonda não fornecido.")
-    p(40, "Unificando registros das Prefeituras.")
+        if progress_callback: progress_callback(pct, msg)
+    p(5, "Iniciando leitura.")
+    df_fortaleza = preparar_dataframe_fortaleza(file_fortaleza) if file_fortaleza else pd.DataFrame()
+    df_vr = preparar_dataframe_vr(file_vr) if file_vr else pd.DataFrame()
     df_unificado = unificar_dataframes(df_fortaleza, df_vr)
-    
-    # --- BLOCO CORRIGIDO DE LEITURA ---
-    p(55, "Lendo arquivo Razão.")
     df_financeiro_raw = pd.DataFrame()
-    if file_razao is not None:
+    if file_razao:
         try:
-            nome_arquivo = file_razao.name.lower()
-            if hasattr(file_razao, "seek"):
-                file_razao.seek(0)
-            
-            if nome_arquivo.endswith(('.xls', '.xlsx')):
-                # Para Excel
-                df_financeiro_raw = pd.read_excel(file_razao)
-                # Garante limpeza da coluna Crédito se for lida como string
-                if 'Crédito' in df_financeiro_raw.columns:
-                     if not pd.api.types.is_numeric_dtype(df_financeiro_raw['Crédito']):
-                        df_financeiro_raw['Crédito'] = parse_moeda_brasil_robusto(df_financeiro_raw['Crédito'])
-            
-            elif nome_arquivo.endswith('.csv'):
-                # Para CSV (com prioridade no ;)
-                df_financeiro_raw = carregar_arquivo_csv(file_razao)
-            else:
-                logs.append("Arquivo Razão em formato não suportado (apenas CSV, XLS, XLSX).")
+            if file_razao.name.lower().endswith(('.xls', '.xlsx')): df_financeiro_raw = pd.read_excel(file_razao)
+            else: df_financeiro_raw = carregar_arquivo_csv(file_razao)
+        except Exception as e: logs.append(f"Erro Razão: {e}")
+    df_prefeitura = limpar_df_prefeitura(df_unificado)
+    df_financeiro = limpar_df_financeiro(df_financeiro_raw)
+    df_prefeitura = criar_ids(df_prefeitura, 'Número', 'Valor do ISS')
+    df_financeiro = criar_ids(df_financeiro, 'Número', 'Crédito')
+    df_pref_v, df_fin_v = aplicar_validacao(df_prefeitura, df_financeiro)
+    excel_buf = exportar_para_excel_bytes(df_pref_v, df_fin_v)
+    return df_pref_v, df_fin_v, excel_buf, logs
 
-        except Exception as e:
-            df_financeiro_raw = pd.DataFrame()
-            logs.append(f"Erro ao carregar Razão: {e}")
-    else:
-        df_financeiro_raw = pd.DataFrame()
-        logs.append("Razão (financeiro) não fornecido.")
 # =========================================================
 # INTERFACE STREAMLIT (CHAMADA PELO MAIN.PY)
 # =========================================================
