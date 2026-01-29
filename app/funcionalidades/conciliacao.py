@@ -7,13 +7,10 @@ from openpyxl.formatting.rule import CellIsRule
 from io import BytesIO
 import utils  # Importando nosso arquivo de utilitários
 
-# =========================================================
-# MOTORES ORIGINAIS (SEM ALTERAÇÃO NA LÓGICA)
-# =========================================================
-
 def carregar_arquivo_csv(arquivo, sep=None, decimal=None, **kwargs):
+    # Prioridade para ponto e vírgula
     candidatos_sep = [sep, ';', ',', '\t', None]
-    candidatos_encoding = [kwargs.pop('encoding', None), 'utf-8', 'latin-1', 'cp1252']
+    candidatos_encoding = [kwargs.pop('encoding', None), 'utf-8', 'latin-1', 'utf-16']
     candidatos_decimal = [decimal, ',', '.']
     for s in candidatos_sep:
         for enc in candidatos_encoding:
@@ -207,6 +204,7 @@ def limpar_df_financeiro(df):
         df['Crédito'] = np.nan
         
     return df
+
 def criar_ids(df, numero_col, valor_col):
     if df is None or df.empty:
         return df
@@ -335,27 +333,38 @@ def exportar_para_excel_bytes(df1, df2):
     out2.seek(0)
     return out2
 
+
 def conciliar_notas(file_fortaleza=None, file_vr=None, file_razao=None, progress_callback=None):
     logs = []
     def p(pct, msg=None):
-        if progress_callback: progress_callback(pct, msg)
-    p(5, "Iniciando leitura.")
-    df_fortaleza = preparar_dataframe_fortaleza(file_fortaleza) if file_fortaleza else pd.DataFrame()
-    df_vr = preparar_dataframe_vr(file_vr) if file_vr else pd.DataFrame()
-    df_unificado = unificar_dataframes(df_fortaleza, df_vr)
-    df_financeiro_raw = pd.DataFrame()
-    if file_razao:
+        if progress_callback:
+            try:
+                progress_callback(pct, msg)
+            except Exception:
+                pass
+    p(5, "Iniciando leitura de arquivos.")
+    if file_fortaleza is not None:
         try:
-            if file_razao.name.lower().endswith(('.xls', '.xlsx')): df_financeiro_raw = pd.read_excel(file_razao)
-            else: df_financeiro_raw = carregar_arquivo_csv(file_razao)
-        except Exception as e: logs.append(f"Erro Razão: {e}")
-    df_prefeitura = limpar_df_prefeitura(df_unificado)
-    df_financeiro = limpar_df_financeiro(df_financeiro_raw)
-    df_prefeitura = criar_ids(df_prefeitura, 'Número', 'Valor do ISS')
-    df_financeiro = criar_ids(df_financeiro, 'Número', 'Crédito')
-    df_pref_v, df_fin_v = aplicar_validacao(df_prefeitura, df_financeiro)
-    excel_buf = exportar_para_excel_bytes(df_pref_v, df_fin_v)
-    return df_pref_v, df_fin_v, excel_buf, logs
+            df_fortaleza = preparar_dataframe_fortaleza(file_fortaleza)
+        except Exception as e:
+            df_fortaleza = pd.DataFrame()
+            logs.append(f"Erro ao processar Fortaleza: {e}")
+    else:
+        df_fortaleza = pd.DataFrame()
+        logs.append("Fortaleza não fornecido.")
+    if file_vr is not None:
+        try:
+            df_vr = preparar_dataframe_vr(file_vr)
+        except Exception as e:
+            df_vr = pd.DataFrame()
+            logs.append(f"Erro ao processar Volta Redonda: {e}")
+    else:
+        df_vr = pd.DataFrame()
+        logs.append("Volta Redonda não fornecido.")
+    p(40, "Unificando registros das Prefeituras.")
+    df_unificado = unificar_dataframes(df_fortaleza, df_vr)
+    
+    # --- BLOCO CORRIGIDO DE LEITURA ---
     p(55, "Lendo arquivo Razão.")
     df_financeiro_raw = pd.DataFrame()
     if file_razao is not None:
@@ -398,12 +407,12 @@ def conciliar_notas(file_fortaleza=None, file_vr=None, file_razao=None, progress
     excel_buffer = exportar_para_excel_bytes(df_prefeitura_valid, df_financeiro_valid)
     p(100, "Concluído.")
     return df_prefeitura_valid, df_financeiro_valid, excel_buffer, logs
-# =========================================================
-# INTERFACE STREAMLIT (CHAMADA PELO MAIN.PY)
-# =========================================================
 
-def pagina_conciliacao_iss():
-    st.markdown("## 🏛️ Conciliação do ISS Retido")
+    # =========================================================
+    # RESUMO DA CONCILIAÇÃO
+    # =========================================================
+    st.markdown("### 📊 Resumo da Conciliação")
+
     col1, col2 = st.columns(2)
 
     with col1:
