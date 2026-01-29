@@ -223,6 +223,108 @@ def preparar_dataframe_vr(file_like):
 
     return df
 
+# =========================================================
+# FUNÇÕES INTERNAS (antigo utils)
+# =========================================================
+
+def unificar_dataframes(df1, df2):
+
+    df1 = df1.copy()
+    df2 = df2.copy()
+
+    if df1.empty and df2.empty:
+        return pd.DataFrame()
+
+    if df1.empty:
+        return df2
+
+    if df2.empty:
+        return df1
+
+    df1.columns = df1.columns.str.strip()
+    df2.columns = df2.columns.str.strip()
+
+    return pd.concat([df1, df2], ignore_index=True)
+
+
+def limpar_df_prefeitura(df):
+
+    df = df.copy()
+
+    df['Numero_Key'] = df['Número'].astype(str).str.strip()
+    df['ISS_Key'] = df['Valor do ISS'].round(2)
+
+    return df
+
+
+def limpar_df_financeiro(df):
+
+    df = df.copy()
+
+    if 'Crédito' in df.columns:
+        df['Credito_Key'] = df['Crédito'].round(2)
+    else:
+        df['Credito_Key'] = 0
+
+    if 'Número' in df.columns:
+        df['Numero_Key'] = df['Número'].astype(str).str.strip()
+    else:
+        df['Numero_Key'] = ''
+
+    return df
+
+
+def criar_ids(df, col_num, col_valor):
+
+    df = df.copy()
+
+    df['ID_Conciliacao'] = (
+        df[col_num].astype(str).str.strip() +
+        "_" +
+        df[col_valor].round(2).astype(str)
+    )
+
+    return df
+
+
+def aplicar_validacao(df_pref, df_fin):
+
+    df_pref = df_pref.copy()
+    df_fin = df_fin.copy()
+
+    ids_fin = set(df_fin['ID_Conciliacao'])
+
+    df_pref['Status_Validacao'] = np.where(
+        df_pref['ID_Conciliacao'].isin(ids_fin),
+        'Validado',
+        'Não Encontrado'
+    )
+
+    ids_pref = set(df_pref['ID_Conciliacao'])
+
+    df_fin['Status_Validacao'] = np.where(
+        df_fin['ID_Conciliacao'].isin(ids_pref),
+        'Validado',
+        'Não Encontrado'
+    )
+
+    return df_pref, df_fin
+
+
+def exportar_para_excel_bytes(df_pref, df_fin):
+
+    buffer = BytesIO()
+
+    with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+
+        df_pref.to_excel(writer, sheet_name='Prefeitura', index=False)
+        df_fin.to_excel(writer, sheet_name='Financeiro', index=False)
+
+    buffer.seek(0)
+
+    return buffer
+
+
 
 # =========================================================
 # CONCILIAÇÃO
@@ -461,6 +563,7 @@ def pagina_conciliacao_iss():
                     data=excel_buf.getvalue(),
                     file_name="Planilha Conciliada.xlsx"
                 )
+
 
 
 
