@@ -426,32 +426,6 @@ def conciliar_notas(file_fortaleza=None, file_vr=None, file_razao=None, progress
     # =========================================================
     # RESUMO DA CONCILIAÇÃO
     # =========================================================
-    st.markdown("### 📊 Resumo da Conciliação")
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.markdown("#### 🏛️ Prefeitura")
-
-        total_pref = len(df_prefeitura_valid)
-        validados_pref = (df_prefeitura_valid['Status_Validacao'] == 'Validado').sum()
-        nao_encontrados_pref = (df_prefeitura_valid['Status_Validacao'] == 'Não Encontrado').sum()
-
-        st.metric("Total de registros", total_pref)
-        st.metric("✅ Validados", validados_pref)
-        st.metric("❌ Não encontrados", nao_encontrados_pref)
-
-    with col2:
-        st.markdown("#### 💰 Financeiro")
-
-        total_fin = len(df_financeiro_valid)
-        validados_fin = (df_financeiro_valid['Status_Validacao'] == 'Validado').sum()
-        nao_encontrados_fin = (df_financeiro_valid['Status_Validacao'] == 'Não Encontrado').sum()
-
-        st.metric("Total de registros", total_fin)
-        st.metric("✅ Validados", validados_fin)
-        st.metric("❌ Não encontrados", nao_encontrados_fin)
-
 def pagina_conciliacao_iss():
 
     colh1, colh2 = st.columns([4,1])
@@ -509,6 +483,7 @@ def pagina_conciliacao_iss():
                 data=excel_buf.getvalue(),
                 file_name="Planilha Conciliada.xlsx"
             )
+
 
 
 
