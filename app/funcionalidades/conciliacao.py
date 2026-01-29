@@ -151,7 +151,19 @@ def unificar_dataframes(df1, df2):
     if not d2.empty and 'Origem' not in d2.columns: d2['Origem'] = 'Volta Redonda'
 
     # O PONTO CHAVE: Empilhar os DataFrames (Preserva 100% dos dados de VR)
-    df = pd.concat([d1, d2], ignore_index=True, sort=False)
+    def unificar_dataframes(df1, df2):
+
+    colunas_merge_present = [
+        c for c in colunas_merge 
+        if c in df1.columns and c in df2.columns
+    ]
+
+    df = pd.merge(
+        df1, df2,
+        on=colunas_merge_present,
+        how='outer',
+        suffixes=('_fortaleza', '_vr')
+    )
     
     # Colunas que o seu motor original espera no final
     colunas_finais = [
@@ -546,6 +558,7 @@ def pagina_conciliacao_iss():
                 data=excel_buf.getvalue(),
                 file_name="Planilha Conciliada.xlsx"
             )
+
 
 
 
