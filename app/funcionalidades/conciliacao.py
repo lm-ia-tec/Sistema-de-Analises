@@ -170,21 +170,45 @@ def unificar_dataframes(df1, df2):
 def limpar_df_prefeitura(df):
     if df is None or df.empty:
         return pd.DataFrame()
+
     df = df.copy()
+
+    # Padroniza CNPJ
     if 'CPF/CNPJ Prestador' in df.columns:
         df['CPF/CNPJ Prestador'] = df['CPF/CNPJ Prestador'].apply(format_cnpj)
+
+    # Status Doc
     if 'Status Doc.' in df.columns:
+        df['Status Doc.'] = df['Status Doc.'].fillna('')
         df = df[df['Status Doc.'] != 'CANCELADA']
+
+    # ISS Retido
     if 'ISS Retido' in df.columns:
+        df['ISS Retido'] = df['ISS Retido'].fillna('')
         df = df[~df['ISS Retido'].isin(['Não', 'NÃO'])]
+
+    # Status Aceite
     if 'Status Aceite' not in df.columns:
         df['Status Aceite'] = 'Não Informada'
     else:
+        df['Status Aceite'] = df['Status Aceite'].fillna('Não Informada')
         df = df[df['Status Aceite'] != 'Recusada']
+
+    # Número
     if 'Número' in df.columns:
-        df['Número'] = df['Número'].astype(str).str.replace(r'\.0$', '', regex=True)
+        df['Número'] = (
+            df['Número']
+            .astype(str)
+            .str.replace(r'\.0$', '', regex=True)
+        )
+
+    # Valor do ISS
     if 'Valor do ISS' in df.columns:
-        df['Valor do ISS'] = pd.to_numeric(df['Valor do ISS'], errors='coerce')
+        df['Valor do ISS'] = pd.to_numeric(
+            df['Valor do ISS'],
+            errors='coerce'
+        ).fillna(0)
+
     return df
 
 def limpar_df_financeiro(df):
@@ -519,6 +543,7 @@ def pagina_conciliacao_iss():
                 data=excel_buf.getvalue(),
                 file_name="Planilha Conciliada.xlsx"
             )
+
 
 
 
