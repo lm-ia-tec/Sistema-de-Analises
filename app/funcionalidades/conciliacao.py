@@ -185,14 +185,17 @@ def limpar_df_prefeitura(df):
     # ISS Retido
     if 'ISS Retido' in df.columns:
         df['ISS Retido'] = df['ISS Retido'].fillna('')
-        df = df[~df['ISS Retido'].isin(['Não', 'NÃO'])]
+        df = df[
+            df['ISS Retido'].isna() |
+            (~df['ISS Retido'].isin(['Não', 'NÃO']))
+        ]
 
     # Status Aceite
     if 'Status Aceite' not in df.columns:
         df['Status Aceite'] = 'Não Informada'
     else:
         df['Status Aceite'] = df['Status Aceite'].fillna('Não Informada')
-        df = df[df['Status Aceite'] != 'Recusada']
+        df = df[(df['Status Aceite'].isna()) | (df['Status Aceite'] != 'Recusada')]
 
     # Número
     if 'Número' in df.columns:
@@ -543,6 +546,7 @@ def pagina_conciliacao_iss():
                 data=excel_buf.getvalue(),
                 file_name="Planilha Conciliada.xlsx"
             )
+
 
 
 
