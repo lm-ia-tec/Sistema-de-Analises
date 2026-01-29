@@ -356,7 +356,48 @@ def conciliar_notas(file_fortaleza=None, file_vr=None, file_razao=None, progress
     df_pref_v, df_fin_v = aplicar_validacao(df_prefeitura, df_financeiro)
     excel_buf = exportar_para_excel_bytes(df_pref_v, df_fin_v)
     return df_pref_v, df_fin_v, excel_buf, logs
+    p(55, "Lendo arquivo Razão.")
+    df_financeiro_raw = pd.DataFrame()
+    if file_razao is not None:
+        try:
+            nome_arquivo = file_razao.name.lower()
+            if hasattr(file_razao, "seek"):
+                file_razao.seek(0)
+            
+            if nome_arquivo.endswith(('.xls', '.xlsx')):
+                # Para Excel
+                df_financeiro_raw = pd.read_excel(file_razao)
+                # Garante limpeza da coluna Crédito se for lida como string
+                if 'Crédito' in df_financeiro_raw.columns:
+                     if not pd.api.types.is_numeric_dtype(df_financeiro_raw['Crédito']):
+                        df_financeiro_raw['Crédito'] = parse_moeda_brasil_robusto(df_financeiro_raw['Crédito'])
+            
+            elif nome_arquivo.endswith('.csv'):
+                # Para CSV (com prioridade no ;)
+                df_financeiro_raw = carregar_arquivo_csv(file_razao)
+            else:
+                logs.append("Arquivo Razão em formato não suportado (apenas CSV, XLS, XLSX).")
 
+        except Exception as e:
+            df_financeiro_raw = pd.DataFrame()
+            logs.append(f"Erro ao carregar Razão: {e}")
+    else:
+        df_financeiro_raw = pd.DataFrame()
+        logs.append("Razão (financeiro) não fornecido.")
+    # --- FIM DO BLOCO CORRIGIDO ---
+
+    p(70, "Limpando dados.")
+    df_prefeitura = limpar_df_prefeitura(df_unificado)
+    df_financeiro = limpar_df_financeiro(df_financeiro_raw)
+    p(82, "Gerando IDs de conciliação.")
+    df_prefeitura = criar_ids(df_prefeitura, 'Número', 'Valor do ISS')
+    df_financeiro = criar_ids(df_financeiro, 'Número', 'Crédito')
+    p(92, "Aplicando validação cruzada.")
+    df_prefeitura_valid, df_financeiro_valid = aplicar_validacao(df_prefeitura, df_financeiro)
+    p(97, "Gerando arquivo Excel para download.")
+    excel_buffer = exportar_para_excel_bytes(df_prefeitura_valid, df_financeiro_valid)
+    p(100, "Concluído.")
+    return df_prefeitura_valid, df_financeiro_valid, excel_buffer, logs
 # =========================================================
 # INTERFACE STREAMLIT (CHAMADA PELO MAIN.PY)
 # =========================================================
