@@ -28,8 +28,21 @@ def format_cnpj(cnpj):
     return cnpj
 
 def parse_moeda_brasil_robusto(serie):
+
+def unificar_dataframes(df1, df2):
+    df1 = df1.copy()
+    df2 = df2.copy()
+
+    df1.columns = df1.columns.str.strip().str.upper()
+    df2.columns = df2.columns.str.strip().str.upper()
+
+    df_unificado = pd.concat([df1, df2], ignore_index=True)
+
+    return df_unificado
+
     s = (serie.astype(str)
                  .str.replace(r'[^0-9,.\-]', '', regex=True)
                  .str.replace('.', '', regex=False)
                  .str.replace(',', '.', regex=False))
+
     return pd.to_numeric(s, errors='coerce')
