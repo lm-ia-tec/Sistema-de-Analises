@@ -1,5 +1,5 @@
 import streamlit as st
-from funcionalidades import conciliacao
+from funcionalidades.conciliacao import pagina_conciliacao_iss
 from funcionalidades import importacao
 from funcionalidades import evolucao
 
@@ -81,3 +81,4 @@ elif operacao == "Evolução Patrimonial":
 # Chamada do rodapé global
 
 rodape()
+
