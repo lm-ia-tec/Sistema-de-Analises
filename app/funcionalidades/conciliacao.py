@@ -9,6 +9,11 @@ from io import BytesIO
 
 import main as utils
 
+import main.utils as utils
+import streamlit as st
+
+st.write("UTILS REAL:", utils.__file__)
+st.write("FUNÇÕES:", dir(utils))
 
 # =========================================================
 # UTILIDADES
@@ -455,6 +460,7 @@ def pagina_conciliacao_iss():
                     data=excel_buf.getvalue(),
                     file_name="Planilha Conciliada.xlsx"
                 )
+
 
 
 
