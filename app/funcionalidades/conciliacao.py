@@ -408,14 +408,6 @@ def pagina_conciliacao_iss():
 
         with st.spinner("Executando conciliação..."):
 
-            df_pref, df_fin, excel_buf, logs = conciliar_notas(
-                file_fortaleza,
-                file_vr,
-                file_razao,
-                progress_callback=progress_cb
-            )
-
-
             for l in logs:
                 st.session_state.logs.append(l)
 
@@ -453,6 +445,7 @@ def pagina_conciliacao_iss():
                     data=excel_buf.getvalue(),
                     file_name="Planilha Conciliada.xlsx"
                 )
+
 
 
 
