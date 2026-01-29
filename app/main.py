@@ -1,5 +1,7 @@
 import streamlit as st
-from funcionalidades import conciliacao, importacao, evolucao
+from funcionalidades import conciliacao
+from funcionalidades import importacao
+from funcionalidades import evolucao
 
 # =========================================================
 # CONFIGURAÇÃO DA PÁGINA (Deve ser a primeira chamada)
@@ -77,4 +79,5 @@ elif operacao == "Evolução Patrimonial":
     evolucao.pagina_evolucao()
 
 # Chamada do rodapé global
+
 rodape()
