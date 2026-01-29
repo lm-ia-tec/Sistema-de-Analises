@@ -408,43 +408,60 @@ def pagina_conciliacao_iss():
 
         with st.spinner("Executando conciliação..."):
 
+            df_pref, df_fin, excel_buf, logs = conciliar_notas(
+                file_fortaleza,
+                file_vr,
+                file_razao,
+                progress_callback=progress_cb
+            )
+
             for l in logs:
                 st.session_state.logs.append(l)
 
-
             st.success("Conciliação concluída!")
+            
+            # 1️⃣ Log de execução
+            #st.subheader("📘 Log de Execução")
+            #for l in st.session_state.logs[-200:]:
+            #    st.write("•", l)
 
-
+            # 2️⃣ Resumo da conciliação
             st.markdown("### 📊 Resumo da Conciliação")
 
             col1, col2 = st.columns(2)
 
-
+            # Resumo da Prefeitura
             with col1:
-
                 st.markdown("#### 🏛️ Prefeitura")
 
-                st.metric("Total", len(df_pref))
-                st.metric("Validados", (df_pref['Status_Validacao'] == 'Validado').sum())
-                st.metric("Não encontrados", (df_pref['Status_Validacao'] == 'Não Encontrado').sum())
+                total_pref = len(df_pref)
+                validados_pref = (df_pref['Status_Validacao'] == 'Validado').sum()
+                nao_encontrados_pref = (df_pref['Status_Validacao'] == 'Não Encontrado').sum()
 
+                st.metric("Total de registros", total_pref)
+                st.metric("✅ Validados", validados_pref)
+                st.metric("❌ Não encontrados", nao_encontrados_pref)
 
+            # Resumo do Financeiro
             with col2:
-
                 st.markdown("#### 💰 Financeiro")
 
-                st.metric("Total", len(df_fin))
-                st.metric("Validados", (df_fin['Status_Validacao'] == 'Validado').sum())
-                st.metric("Não encontrados", (df_fin['Status_Validacao'] == 'Não Encontrado').sum())
+                total_fin = len(df_fin)
+                validados_fin = (df_fin['Status_Validacao'] == 'Validado').sum()
+                nao_encontrados_fin = (df_fin['Status_Validacao'] == 'Não Encontrado').sum()
 
+                st.metric("Total de registros", total_fin)
+                st.metric("✅ Validados", validados_fin)
+                st.metric("❌ Não encontrados", nao_encontrados_fin)
 
+            # 3️⃣ Botão para baixar planilha  
             if excel_buf:
-
                 st.download_button(
                     "📥 Baixar Planilha Conciliada",
                     data=excel_buf.getvalue(),
                     file_name="Planilha Conciliada.xlsx"
                 )
+
 
 
 
