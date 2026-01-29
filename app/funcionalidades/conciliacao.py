@@ -404,22 +404,117 @@ def conciliar_notas(file_fortaleza=None, file_vr=None, file_razao=None, progress
 
 def pagina_conciliacao_iss():
     st.markdown("## 🏛️ Conciliação do ISS Retido")
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("#### 🏛️ Prefeitura")
+
+        total_pref = len(df_prefeitura_valid)
+        validados_pref = (df_prefeitura_valid['Status_Validacao'] == 'Validado').sum()
+        nao_encontrados_pref = (df_prefeitura_valid['Status_Validacao'] == 'Não Encontrado').sum()
+
+        st.metric("Total de registros", total_pref)
+        st.metric("✅ Validados", validados_pref)
+        st.metric("❌ Não encontrados", nao_encontrados_pref)
+
+    with col2:
+        st.markdown("#### 💰 Financeiro")
+
+        total_fin = len(df_financeiro_valid)
+        validados_fin = (df_financeiro_valid['Status_Validacao'] == 'Validado').sum()
+        nao_encontrados_fin = (df_financeiro_valid['Status_Validacao'] == 'Não Encontrado').sum()
+
+        st.metric("Total de registros", total_fin)
+        st.metric("✅ Validados", validados_fin)
+        st.metric("❌ Não encontrados", nao_encontrados_fin)
+
+def pagina_conciliacao_iss():
+
+    colh1, colh2 = st.columns([4,1])
+    with colh1:
+        st.markdown('<div class="big-title">Conciliação do ISS Retido</div>', unsafe_allow_html=True)
+        st.markdown('<div class="sub-title">Automação fiscal personalizada para LIV SAÚDE.</div>', unsafe_allow_html=True)
+
     st.markdown("---")
 
+    st.markdown('<div class="panel">', unsafe_allow_html=True)
+    st.subheader("Upload dos Documentos")
+
     col1, col2, col3 = st.columns(3)
-    with col1: file_fortaleza = st.file_uploader("NFS Fortaleza", type=["xlsx"])
-    with col2: file_vr = st.file_uploader("NFS Volta Redonda", type=["xls", "xlsx"])
-    with col3: file_razao = st.file_uploader("Razão Contábil", type=["csv", "xls", "xlsx"])
+    with col1:
+        file_fortaleza = st.file_uploader("📄 NFS Fortaleza", type=["xlsx"])
+    with col2:
+        file_vr = st.file_uploader("📄 NFS Volta Redonda", type=["xls", "xlsx"])
+    with col3:
+        file_razao = st.file_uploader("📊 Razão Contábil", type=["csv", "xls", "xlsx"])
 
-    if st.button("🚀 Processar Conciliação"):
-        with st.spinner("Processando..."):
-            df_pref, df_fin, excel_buf, logs = conciliar_notas(file_fortaleza, file_vr, file_razao)
-            
-            st.success("Concluído!")
-            
-            c1, c2 = st.columns(2)
-            c1.metric("Prefeitura", len(df_pref), f"{(df_pref['Status_Validacao']=='Validado').sum()} ok")
-            c2.metric("Financeiro", len(df_fin), f"{(df_fin['Status_Validacao']=='Validado').sum()} ok")
+    st.markdown('</div>', unsafe_allow_html=True)
 
+    if 'logs' not in st.session_state:
+        st.session_state.logs = []
+    if 'progress' not in st.session_state:
+        st.session_state.progress = 0
+
+    def progress_cb(pct, msg=None):
+        st.session_state.progress = int(pct)
+        if msg:
+            st.session_state.logs.append(f"{pct}% - {msg}")
+
+    if st.button("🚀 Processar"):
+        st.session_state.logs = []
+        st.session_state.progress = 0
+
+        with st.spinner("Executando conciliação..."):
+            df_pref, df_fin, excel_buf, logs = conciliar_notas(
+                file_fortaleza,
+                file_vr,
+                file_razao,
+                progress_callback=progress_cb
+            )
+
+            for l in logs:
+                st.session_state.logs.append(l)
+
+            st.success("Conciliação concluída!")
+            
+            # 1️⃣ Log de execução
+            #st.subheader("📘 Log de Execução")
+            #for l in st.session_state.logs[-200:]:
+            #    st.write("•", l)
+
+            # 2️⃣ Resumo da conciliação
+            st.markdown("### 📊 Resumo da Conciliação")
+
+            col1, col2 = st.columns(2)
+
+            # Resumo da Prefeitura
+            with col1:
+                st.markdown("#### 🏛️ Prefeitura")
+
+                total_pref = len(df_pref)
+                validados_pref = (df_pref['Status_Validacao'] == 'Validado').sum()
+                nao_encontrados_pref = (df_pref['Status_Validacao'] == 'Não Encontrado').sum()
+
+                st.metric("Total de registros", total_pref)
+                st.metric("✅ Validados", validados_pref)
+                st.metric("❌ Não encontrados", nao_encontrados_pref)
+
+            # Resumo do Financeiro
+            with col2:
+                st.markdown("#### 💰 Financeiro")
+
+                total_fin = len(df_fin)
+                validados_fin = (df_fin['Status_Validacao'] == 'Validado').sum()
+                nao_encontrados_fin = (df_fin['Status_Validacao'] == 'Não Encontrado').sum()
+
+                st.metric("Total de registros", total_fin)
+                st.metric("✅ Validados", validados_fin)
+                st.metric("❌ Não encontrados", nao_encontrados_fin)
+
+            # 3️⃣ Botão para baixar planilha  
             if excel_buf:
-                st.download_button("📥 Baixar Planilha Conciliada", data=excel_buf.getvalue(), file_name="Conciliacao_ISS.xlsx")
+                st.download_button(
+                    "📥 Baixar Planilha Conciliada",
+                    data=excel_buf.getvalue(),
+                    file_name="Planilha Conciliada.xlsx"
+                )
