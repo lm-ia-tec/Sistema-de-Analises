@@ -279,7 +279,7 @@ def conciliar_notas(file_fortaleza=None, file_vr=None, file_razao=None, progress
 
     p(40, "Unificando registros das Prefeituras.")
 
-    df_unificado = utils.unificar_dataframes(df_fortaleza, df_vr)
+    df_unificado = unificar_dataframes(df_fortaleza, df_vr)
 
 
     p(55, "Lendo arquivo Razão.")
@@ -325,19 +325,19 @@ def conciliar_notas(file_fortaleza=None, file_vr=None, file_razao=None, progress
 
     p(70, "Limpando dados.")
 
-    df_prefeitura = utils.limpar_df_prefeitura(df_unificado)
-    df_financeiro = utils.limpar_df_financeiro(df_financeiro_raw)
+    df_prefeitura = limpar_df_prefeitura(df_unificado)
+    df_financeiro = limpar_df_financeiro(df_financeiro_raw)
 
 
     p(82, "Gerando IDs.")
 
-    df_prefeitura = utils.criar_ids(df_prefeitura, 'Número', 'Valor do ISS')
-    df_financeiro = utils.criar_ids(df_financeiro, 'Número', 'Crédito')
+    df_prefeitura = criar_ids(df_prefeitura, 'Número', 'Valor do ISS')
+    df_financeiro = criar_ids(df_financeiro, 'Número', 'Crédito')
 
 
     p(92, "Aplicando validação.")
 
-    df_prefeitura_valid, df_financeiro_valid = utils.aplicar_validacao(
+    df_prefeitura_valid, df_financeiro_valid = aplicar_validacao(
         df_prefeitura,
         df_financeiro
     )
@@ -345,7 +345,7 @@ def conciliar_notas(file_fortaleza=None, file_vr=None, file_razao=None, progress
 
     p(97, "Gerando Excel.")
 
-    excel_buffer = utils.exportar_para_excel_bytes(
+    excel_buffer = exportar_para_excel_bytes(
         df_prefeitura_valid,
         df_financeiro_valid
     )
@@ -461,6 +461,7 @@ def pagina_conciliacao_iss():
                     data=excel_buf.getvalue(),
                     file_name="Planilha Conciliada.xlsx"
                 )
+
 
 
 
