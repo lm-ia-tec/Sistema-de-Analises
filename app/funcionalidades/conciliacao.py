@@ -129,35 +129,43 @@ def preparar_dataframe_vr(file_like):
         df['Valor dos Serviços'] = pd.to_numeric(df['Valor dos Serviços'], errors='coerce')
     return df
 
+# Mantenha todos os seus motores (limpar_df, criar_ids, etc) iguais.
+# APENAS SUBSTITUA ESTA FUNÇÃO ESPECÍFICA:
+
 def unificar_dataframes(df1, df2):
+    """
+    Une os dados de Fortaleza e Volta Redonda.
+    Usamos concat em vez de merge para garantir que, se uma prefeitura
+    tiver colunas que a outra não tem (como Status Aceite), os dados
+    de AMBAS sejam preservados.
+    """
     if (df1 is None or df1.empty) and (df2 is None or df2.empty):
         return pd.DataFrame()
-    elif df1 is None or df1.empty:
-        return df2.copy()
-    elif df2 is None or df2.empty:
-        return df1.copy()
-    if 'Status Aceite' not in df1.columns:
-        df1['Status Aceite'] = None
-    if 'Status Aceite' not in df2.columns:
-        df2['Status Aceite'] = None
-    colunas_merge = ['Data', 'CPF/CNPJ Prestador', 'Razão Social/Nome do Prestador',
-                     'Número', 'Valor do ISS', 'Valor dos Serviços', 'ISS Retido',
-                     'Status Doc.', 'Status Aceite']
-    colunas_merge_present = [c for c in colunas_merge if c in df1.columns and c in df2.columns]
-    df = pd.merge(df1, df2, on=colunas_merge_present, how='outer', suffixes=('_fortaleza', '_vr'))
-    origem_cols = [c for c in ['Origem_fortaleza', 'Origem_vr'] if c in df.columns]
-    if len(origem_cols) == 2:
-        df['Origem'] = df['Origem_fortaleza'].fillna(df['Origem_vr'])
-        df.drop(columns=origem_cols, inplace=True)
-    elif 'Origem_fortaleza' in df.columns:
-        df.rename(columns={'Origem_fortaleza': 'Origem'}, inplace=True)
-    elif 'Origem_vr' in df.columns:
-        df.rename(columns={'Origem_vr': 'Origem'}, inplace=True)
-    colunas_finais = ['Origem', 'Data', 'CPF/CNPJ Prestador', 'Razão Social/Nome do Prestador',
-                      'Número', 'Valor do ISS', 'Valor dos Serviços', 'ISS Retido',
-                      'Status Aceite', 'Status Doc.']
-    existentes = [c for c in colunas_finais if c in df.columns]
-    return df[existentes].copy()
+    
+    # Tratamento para casos onde apenas um arquivo é enviado
+    d1 = df1.copy() if (df1 is not None and not df1.empty) else pd.DataFrame()
+    d2 = df2.copy() if (df2 is not None and not df2.empty) else pd.DataFrame()
+    
+    # Adiciona a coluna Origem caso não exista (prevenção)
+    if not d1.empty and 'Origem' not in d1.columns: d1['Origem'] = 'Fortaleza'
+    if not d2.empty and 'Origem' not in d2.columns: d2['Origem'] = 'Volta Redonda'
+
+    # O PONTO CHAVE: Empilhar os DataFrames (Preserva 100% dos dados de VR)
+    df = pd.concat([d1, d2], ignore_index=True, sort=False)
+    
+    # Colunas que o seu motor original espera no final
+    colunas_finais = [
+        'Origem', 'Data', 'CPF/CNPJ Prestador', 'Razão Social/Nome do Prestador',
+        'Número', 'Valor do ISS', 'Valor dos Serviços', 'ISS Retido',
+        'Status Aceite', 'Status Doc.'
+    ]
+    
+    # Garante que todas as colunas existam antes de retornar
+    for col in colunas_finais:
+        if col not in df.columns:
+            df[col] = np.nan
+            
+    return df[colunas_finais].copy()
 
 def limpar_df_prefeitura(df):
     if df is None or df.empty:
@@ -534,4 +542,5 @@ def pagina_conciliacao_iss():
                     data=excel_buf.getvalue(),
                     file_name="Planilha Conciliada.xlsx"
                 )
+
 
