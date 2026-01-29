@@ -7,8 +7,6 @@ from openpyxl.styles import PatternFill
 from openpyxl.formatting.rule import CellIsRule
 from io import BytesIO
 
-from main import utils
-
 
 # =========================================================
 # UTILIDADES
@@ -455,6 +453,7 @@ def pagina_conciliacao_iss():
                     data=excel_buf.getvalue(),
                     file_name="Planilha Conciliada.xlsx"
                 )
+
 
 
 
