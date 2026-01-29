@@ -6,10 +6,6 @@ from openpyxl.styles import PatternFill
 from openpyxl.formatting.rule import CellIsRule
 from io import BytesIO
 import utils  # Importando nosso arquivo de utilitários
-import pickle
-import os
-import io
-import hashlib
 
 # =========================================================
 # PÁGINA — CONCILIAÇÃO ISS (INTERFACE ORIGINAL)
@@ -129,101 +125,54 @@ def preparar_dataframe_vr(file_like):
         df['Valor dos Serviços'] = pd.to_numeric(df['Valor dos Serviços'], errors='coerce')
     return df
 
-# Mantenha todos os seus motores (limpar_df, criar_ids, etc) iguais.
-# APENAS SUBSTITUA ESTA FUNÇÃO ESPECÍFICA:
-
 def unificar_dataframes(df1, df2):
-    """
-    Une os dados de Fortaleza e Volta Redonda.
-    Usamos concat em vez de merge para garantir que, se uma prefeitura
-    tiver colunas que a outra não tem (como Status Aceite), os dados
-    de AMBAS sejam preservados.
-    """
     if (df1 is None or df1.empty) and (df2 is None or df2.empty):
         return pd.DataFrame()
-    
-    # Tratamento para casos onde apenas um arquivo é enviado
-    d1 = df1.copy() if (df1 is not None and not df1.empty) else pd.DataFrame()
-    d2 = df2.copy() if (df2 is not None and not df2.empty) else pd.DataFrame()
-    
-    # Adiciona a coluna Origem caso não exista (prevenção)
-    if not d1.empty and 'Origem' not in d1.columns: d1['Origem'] = 'Fortaleza'
-    if not d2.empty and 'Origem' not in d2.columns: d2['Origem'] = 'Volta Redonda'
-
-    # O PONTO CHAVE: Empilhar os DataFrames (Preserva 100% dos dados de VR)
-    def unificar_dataframes(df1, df2):
-
-    colunas_merge_present = [
-        c for c in colunas_merge 
-        if c in df1.columns and c in df2.columns
-    ]
-
-    df = pd.merge(
-        df1, df2,
-        on=colunas_merge_present,
-        how='outer',
-        suffixes=('_fortaleza', '_vr')
-    )
-    
-    # Colunas que o seu motor original espera no final
-    colunas_finais = [
-        'Origem', 'Data', 'CPF/CNPJ Prestador', 'Razão Social/Nome do Prestador',
-        'Número', 'Valor do ISS', 'Valor dos Serviços', 'ISS Retido',
-        'Status Aceite', 'Status Doc.'
-    ]
-    
-    # Garante que todas as colunas existam antes de retornar
-    for col in colunas_finais:
-        if col not in df.columns:
-            df[col] = np.nan
-            
-    return df[colunas_finais].copy()
+    elif df1 is None or df1.empty:
+        return df2.copy()
+    elif df2 is None or df2.empty:
+        return df1.copy()
+    if 'Status Aceite' not in df1.columns:
+        df1['Status Aceite'] = None
+    if 'Status Aceite' not in df2.columns:
+        df2['Status Aceite'] = None
+    colunas_merge = ['Data', 'CPF/CNPJ Prestador', 'Razão Social/Nome do Prestador',
+                     'Número', 'Valor do ISS', 'Valor dos Serviços', 'ISS Retido',
+                     'Status Doc.', 'Status Aceite']
+    colunas_merge_present = [c for c in colunas_merge if c in df1.columns and c in df2.columns]
+    df = pd.merge(df1, df2, on=colunas_merge_present, how='outer', suffixes=('_fortaleza', '_vr'))
+    origem_cols = [c for c in ['Origem_fortaleza', 'Origem_vr'] if c in df.columns]
+    if len(origem_cols) == 2:
+        df['Origem'] = df['Origem_fortaleza'].fillna(df['Origem_vr'])
+        df.drop(columns=origem_cols, inplace=True)
+    elif 'Origem_fortaleza' in df.columns:
+        df.rename(columns={'Origem_fortaleza': 'Origem'}, inplace=True)
+    elif 'Origem_vr' in df.columns:
+        df.rename(columns={'Origem_vr': 'Origem'}, inplace=True)
+    colunas_finais = ['Origem', 'Data', 'CPF/CNPJ Prestador', 'Razão Social/Nome do Prestador',
+                      'Número', 'Valor do ISS', 'Valor dos Serviços', 'ISS Retido',
+                      'Status Aceite', 'Status Doc.']
+    existentes = [c for c in colunas_finais if c in df.columns]
+    return df[existentes].copy()
 
 def limpar_df_prefeitura(df):
     if df is None or df.empty:
         return pd.DataFrame()
-
     df = df.copy()
-
-    # Padroniza CNPJ
     if 'CPF/CNPJ Prestador' in df.columns:
         df['CPF/CNPJ Prestador'] = df['CPF/CNPJ Prestador'].apply(format_cnpj)
-
-    # Status Doc
     if 'Status Doc.' in df.columns:
-        df['Status Doc.'] = df['Status Doc.'].fillna('')
         df = df[df['Status Doc.'] != 'CANCELADA']
-
-    # ISS Retido
     if 'ISS Retido' in df.columns:
-        df['ISS Retido'] = df['ISS Retido'].fillna('')
-        df = df[
-            df['ISS Retido'].isna() |
-            (~df['ISS Retido'].isin(['Não', 'NÃO']))
-        ]
-
-    # Status Aceite
+        df = df[~df['ISS Retido'].isin(['Não', 'NÃO'])]
     if 'Status Aceite' not in df.columns:
         df['Status Aceite'] = 'Não Informada'
     else:
-        df['Status Aceite'] = df['Status Aceite'].fillna('Não Informada')
-        df = df[(df['Status Aceite'].isna()) | (df['Status Aceite'] != 'Recusada')]
-
-    # Número
+        df = df[df['Status Aceite'] != 'Recusada']
     if 'Número' in df.columns:
-        df['Número'] = (
-            df['Número']
-            .astype(str)
-            .str.replace(r'\.0$', '', regex=True)
-        )
-
-    # Valor do ISS
+        df['Número'] = df['Número'].astype(str).str.replace(r'\.0$', '', regex=True)
     if 'Valor do ISS' in df.columns:
-        df['Valor do ISS'] = pd.to_numeric(
-            df['Valor do ISS'],
-            errors='coerce'
-        ).fillna(0)
-
+        df['Valor do ISS'] = pd.to_numeric(df['Valor do ISS'], errors='coerce')
     return df
 
 def limpar_df_financeiro(df):
@@ -465,6 +414,32 @@ def conciliar_notas(file_fortaleza=None, file_vr=None, file_razao=None, progress
     # =========================================================
     # RESUMO DA CONCILIAÇÃO
     # =========================================================
+    st.markdown("### 📊 Resumo da Conciliação")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("#### 🏛️ Prefeitura")
+
+        total_pref = len(df_prefeitura_valid)
+        validados_pref = (df_prefeitura_valid['Status_Validacao'] == 'Validado').sum()
+        nao_encontrados_pref = (df_prefeitura_valid['Status_Validacao'] == 'Não Encontrado').sum()
+
+        st.metric("Total de registros", total_pref)
+        st.metric("✅ Validados", validados_pref)
+        st.metric("❌ Não encontrados", nao_encontrados_pref)
+
+    with col2:
+        st.markdown("#### 💰 Financeiro")
+
+        total_fin = len(df_financeiro_valid)
+        validados_fin = (df_financeiro_valid['Status_Validacao'] == 'Validado').sum()
+        nao_encontrados_fin = (df_financeiro_valid['Status_Validacao'] == 'Não Encontrado').sum()
+
+        st.metric("Total de registros", total_fin)
+        st.metric("✅ Validados", validados_fin)
+        st.metric("❌ Não encontrados", nao_encontrados_fin)
+
 def pagina_conciliacao_iss():
 
     colh1, colh2 = st.columns([4,1])
@@ -514,58 +489,44 @@ def pagina_conciliacao_iss():
 
             st.success("Conciliação concluída!")
             
+            # 1️⃣ Log de execução
+            #st.subheader("📘 Log de Execução")
+            #for l in st.session_state.logs[-200:]:
+            #    st.write("•", l)
 
-        # 1️⃣ Log de execução
-        #st.subheader("📘 Log de Execução")
-        #for l in st.session_state.logs[-200:]:
-        #    st.write("•", l)
+            # 2️⃣ Resumo da conciliação
+            st.markdown("### 📊 Resumo da Conciliação")
 
-        # 2️⃣ Resumo da conciliação
-        st.markdown("### 📊 Resumo da Conciliação")
+            col1, col2 = st.columns(2)
 
-        col1, col2 = st.columns(2)
+            # Resumo da Prefeitura
+            with col1:
+                st.markdown("#### 🏛️ Prefeitura")
 
-        # Resumo da Prefeitura
-        with col1:
-            st.markdown("#### 🏛️ Prefeitura")
+                total_pref = len(df_pref)
+                validados_pref = (df_pref['Status_Validacao'] == 'Validado').sum()
+                nao_encontrados_pref = (df_pref['Status_Validacao'] == 'Não Encontrado').sum()
 
-            total_pref = len(df_pref)
-            validados_pref = (df_pref['Status_Validacao'] == 'Validado').sum()
-            nao_encontrados_pref = (df_pref['Status_Validacao'] == 'Não Encontrado').sum()
+                st.metric("Total de registros", total_pref)
+                st.metric("✅ Validados", validados_pref)
+                st.metric("❌ Não encontrados", nao_encontrados_pref)
 
-            st.metric("Total de registros", total_pref)
-            st.metric("✅ Validados", validados_pref)
-            st.metric("❌ Não encontrados", nao_encontrados_pref)
+            # Resumo do Financeiro
+            with col2:
+                st.markdown("#### 💰 Financeiro")
 
-        # Resumo do Financeiro
-        with col2:
-            st.markdown("#### 💰 Financeiro")
+                total_fin = len(df_fin)
+                validados_fin = (df_fin['Status_Validacao'] == 'Validado').sum()
+                nao_encontrados_fin = (df_fin['Status_Validacao'] == 'Não Encontrado').sum()
 
-            total_fin = len(df_fin)
-            validados_fin = (df_fin['Status_Validacao'] == 'Validado').sum()
-            nao_encontrados_fin = (df_fin['Status_Validacao'] == 'Não Encontrado').sum()
+                st.metric("Total de registros", total_fin)
+                st.metric("✅ Validados", validados_fin)
+                st.metric("❌ Não encontrados", nao_encontrados_fin)
 
-            st.metric("Total de registros", total_fin)
-            st.metric("✅ Validados", validados_fin)
-            st.metric("❌ Não encontrados", nao_encontrados_fin)
-
-
-        # 3️⃣ Botão para baixar planilha  
-        
-        if excel_buf:
-            st.download_button(
-                "📥 Baixar Planilha Conciliada",
-                data=excel_buf.getvalue(),
-                file_name="Planilha Conciliada.xlsx"
-            )
-
-
-
-
-
-
-
-
-
-
-
+            # 3️⃣ Botão para baixar planilha  
+            if excel_buf:
+                st.download_button(
+                    "📥 Baixar Planilha Conciliada",
+                    data=excel_buf.getvalue(),
+                    file_name="Planilha Conciliada.xlsx"
+                )
