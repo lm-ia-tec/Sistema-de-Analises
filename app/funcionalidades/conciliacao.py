@@ -7,6 +7,9 @@ from openpyxl.formatting.rule import CellIsRule
 from io import BytesIO
 import utils  # Importando nosso arquivo de utilitários
 
+# =========================================================
+# PÁGINA — CONCILIAÇÃO ISS (INTERFACE ORIGINAL)
+# =========================================================
 def carregar_arquivo_csv(arquivo, sep=None, decimal=None, **kwargs):
     # Prioridade para ponto e vírgula
     candidatos_sep = [sep, ';', ',', '\t', None]
