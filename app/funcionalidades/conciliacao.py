@@ -501,11 +501,6 @@ def pagina_conciliacao_iss():
 
             st.success("Conciliação concluída!")
             
-            
-
-            st.metric("Total de registros", total_fin)
-            st.metric("✅ Validados", validados_fin)
-            st.metric("❌ Não encontrados", nao_encontrados_fin)
 
         # 3️⃣ Botão para baixar planilha  
         if excel_buf:
@@ -514,6 +509,7 @@ def pagina_conciliacao_iss():
                 data=excel_buf.getvalue(),
                 file_name="Planilha Conciliada.xlsx"
             )
+
 
 
 
