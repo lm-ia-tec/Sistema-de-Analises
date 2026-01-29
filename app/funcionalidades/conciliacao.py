@@ -261,8 +261,33 @@ def limpar_df_financeiro(df):
 
     df = df.copy()
 
+    # Garantir que Crédito seja numérico
     if 'Crédito' in df.columns:
+
+        df['Crédito'] = parse_moeda_brasil_robusto(df['Crédito'])
+
         df['Credito_Key'] = df['Crédito'].round(2)
+
+    else:
+        df['Credito_Key'] = 0
+
+
+    # Garantir Número
+    if 'Número' in df.columns:
+
+        df['Numero_Key'] = (
+            df['Número']
+            .astype(str)
+            .str.strip()
+            .str.replace(r'\.0$', '', regex=True)
+        )
+
+    else:
+        df['Numero_Key'] = ''
+
+
+    return df
+
     else:
         df['Credito_Key'] = 0
 
@@ -563,6 +588,7 @@ def pagina_conciliacao_iss():
                     data=excel_buf.getvalue(),
                     file_name="Planilha Conciliada.xlsx"
                 )
+
 
 
 
