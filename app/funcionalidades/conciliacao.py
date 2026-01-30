@@ -6,6 +6,7 @@ import openpyxl
 from openpyxl.styles import PatternFill
 from openpyxl.formatting.rule import CellIsRule
 from io import BytesIO
+import re
 
 
 # =========================================================
@@ -174,6 +175,10 @@ def limpar_df_prefeitura(df):
         df['Número'] = df['Número'].astype(str).str.replace(r'\.0$', '', regex=True)
     if 'Valor do ISS' in df.columns:
         df['Valor do ISS'] = pd.to_numeric(df['Valor do ISS'], errors='coerce')
+
+    if 'Número' in df.columns:
+    df['Número'] = df['Número'].apply(limpar_numero_nota)
+
     return df
 
 def limpar_df_financeiro(df):
@@ -206,8 +211,26 @@ def limpar_df_financeiro(df):
              df['Crédito'] = parse_moeda_brasil_robusto(df['Crédito'])
     else:
         df['Crédito'] = np.nan
-        
+
+    if 'Número' in df.columns:
+    df['Número'] = df['Número'].apply(limpar_numero_nota)
+
     return df
+
+def limpar_numero_nota(valor):
+    if pd.isna(valor):
+        return ""
+
+    v = str(valor)
+
+    # Remove tudo que não for número
+    v = re.sub(r'[^0-9]', '', v)
+
+    # Remove zeros à esquerda
+    v = v.lstrip('0')
+
+    return v
+
 
 def criar_ids(df, numero_col, valor_col):
     if df is None or df.empty:
@@ -519,6 +542,7 @@ def pagina_conciliacao_iss():
                     data=excel_buf.getvalue(),
                     file_name="Planilha Conciliada.xlsx"
                 )
+
 
 
 
