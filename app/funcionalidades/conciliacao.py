@@ -239,6 +239,9 @@ def criar_ids(df, numero_col, valor_col):
     df_temp['ID'] = numero + "_" + valor
 
     return df_temp
+    
+    st.write("PREFEITURA", df_prefeitura[['Número','Valor do ISS','ID']].head())
+    st.write("FINANCEIRO", df_financeiro[['Número','Crédito','ID']].head())
 
 
 def aplicar_validacao(df1, df2):
@@ -516,5 +519,6 @@ def pagina_conciliacao_iss():
                     data=excel_buf.getvalue(),
                     file_name="Planilha Conciliada.xlsx"
                 )
+
 
 
