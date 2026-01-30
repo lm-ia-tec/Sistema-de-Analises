@@ -223,14 +223,12 @@ def preparar_dataframe_vr(file_like):
 
     return df
 
+
 # =========================================================
-# FUNÇÕES INTERNAS (antigo utils)
+# FUNÇÕES INTERNAS
 # =========================================================
 
 def unificar_dataframes(df1, df2):
-
-    df1 = df1.copy()
-    df2 = df2.copy()
 
     if df1.empty and df2.empty:
         return pd.DataFrame()
@@ -240,6 +238,9 @@ def unificar_dataframes(df1, df2):
 
     if df2.empty:
         return df1
+
+    df1 = df1.copy()
+    df2 = df2.copy()
 
     df1.columns = df1.columns.str.strip()
     df2.columns = df2.columns.str.strip()
@@ -261,18 +262,14 @@ def limpar_df_financeiro(df):
 
     df = df.copy()
 
-    # Garantir que Crédito seja numérico
     if 'Crédito' in df.columns:
 
         df['Crédito'] = parse_moeda_brasil_robusto(df['Crédito'])
-
         df['Credito_Key'] = df['Crédito'].round(2)
 
     else:
         df['Credito_Key'] = 0
 
-
-    # Garantir Número
     if 'Número' in df.columns:
 
         df['Numero_Key'] = (
@@ -285,319 +282,4 @@ def limpar_df_financeiro(df):
     else:
         df['Numero_Key'] = ''
 
-
     return df
-
-    else:
-        df['Credito_Key'] = 0
-
-    if 'Número' in df.columns:
-        df['Numero_Key'] = df['Número'].astype(str).str.strip()
-    else:
-        df['Numero_Key'] = ''
-
-    return df
-
-
-def criar_ids(df, col_num, col_valor):
-
-    df = df.copy()
-
-    df['ID_Conciliacao'] = (
-        df[col_num].astype(str).str.strip() +
-        "_" +
-        df[col_valor].round(2).astype(str)
-    )
-
-    return df
-
-
-def aplicar_validacao(df_pref, df_fin):
-
-    df_pref = df_pref.copy()
-    df_fin = df_fin.copy()
-
-    ids_fin = set(df_fin['ID_Conciliacao'])
-
-    df_pref['Status_Validacao'] = np.where(
-        df_pref['ID_Conciliacao'].isin(ids_fin),
-        'Validado',
-        'Não Encontrado'
-    )
-
-    ids_pref = set(df_pref['ID_Conciliacao'])
-
-    df_fin['Status_Validacao'] = np.where(
-        df_fin['ID_Conciliacao'].isin(ids_pref),
-        'Validado',
-        'Não Encontrado'
-    )
-
-    return df_pref, df_fin
-
-
-def exportar_para_excel_bytes(df_pref, df_fin):
-
-    buffer = BytesIO()
-
-    with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-
-        df_pref.to_excel(writer, sheet_name='Prefeitura', index=False)
-        df_fin.to_excel(writer, sheet_name='Financeiro', index=False)
-
-    buffer.seek(0)
-
-    return buffer
-
-
-
-# =========================================================
-# CONCILIAÇÃO
-# =========================================================
-
-def conciliar_notas(file_fortaleza=None, file_vr=None, file_razao=None, progress_callback=None):
-
-    logs = []
-
-    def p(pct, msg=None):
-
-        if progress_callback:
-
-            try:
-                progress_callback(pct, msg)
-            except Exception:
-                pass
-
-
-    p(5, "Iniciando leitura de arquivos.")
-
-
-    if file_fortaleza is not None:
-
-        _reset_file(file_fortaleza)
-
-        try:
-            df_fortaleza = preparar_dataframe_fortaleza(file_fortaleza)
-
-        except Exception as e:
-            df_fortaleza = pd.DataFrame()
-            logs.append(f"Erro ao processar Fortaleza: {e}")
-
-    else:
-        df_fortaleza = pd.DataFrame()
-        logs.append("Fortaleza não fornecido.")
-
-
-    if file_vr is not None:
-
-        _reset_file(file_vr)
-
-        try:
-            df_vr = preparar_dataframe_vr(file_vr)
-
-        except Exception as e:
-            df_vr = pd.DataFrame()
-            logs.append(f"Erro ao processar Volta Redonda: {e}")
-
-    else:
-        df_vr = pd.DataFrame()
-        logs.append("Volta Redonda não fornecido.")
-
-
-    p(40, "Unificando registros das Prefeituras.")
-
-    df_unificado = unificar_dataframes(df_fortaleza, df_vr)
-
-
-    p(55, "Lendo arquivo Razão.")
-
-    df_financeiro_raw = pd.DataFrame()
-
-    if file_razao is not None:
-
-        try:
-
-            nome_arquivo = file_razao.name.lower()
-
-            _reset_file(file_razao)
-
-            if nome_arquivo.endswith(('.xls', '.xlsx')):
-
-                df_financeiro_raw = pd.read_excel(file_razao)
-
-                if 'Crédito' in df_financeiro_raw.columns:
-
-                    if not pd.api.types.is_numeric_dtype(df_financeiro_raw['Crédito']):
-                        df_financeiro_raw['Crédito'] = parse_moeda_brasil_robusto(
-                            df_financeiro_raw['Crédito']
-                        )
-
-            elif nome_arquivo.endswith('.csv'):
-
-                df_financeiro_raw = carregar_arquivo_csv(file_razao)
-
-            else:
-
-                logs.append("Arquivo Razão em formato não suportado.")
-
-        except Exception as e:
-
-            df_financeiro_raw = pd.DataFrame()
-            logs.append(f"Erro ao carregar Razão: {e}")
-
-    else:
-
-        logs.append("Razão não fornecido.")
-
-
-    p(70, "Limpando dados.")
-
-    df_prefeitura = limpar_df_prefeitura(df_unificado)
-    df_financeiro = limpar_df_financeiro(df_financeiro_raw)
-
-
-    p(82, "Gerando IDs.")
-
-    df_prefeitura = criar_ids(df_prefeitura, 'Número', 'Valor do ISS')
-    df_financeiro = criar_ids(df_financeiro, 'Número', 'Crédito')
-
-
-    p(92, "Aplicando validação.")
-
-    df_prefeitura_valid, df_financeiro_valid = aplicar_validacao(
-        df_prefeitura,
-        df_financeiro
-    )
-
-
-    p(97, "Gerando Excel.")
-
-    excel_buffer = exportar_para_excel_bytes(
-        df_prefeitura_valid,
-        df_financeiro_valid
-    )
-
-
-    p(100, "Concluído.")
-
-
-    return df_prefeitura_valid, df_financeiro_valid, excel_buffer, logs
-
-
-# =========================================================
-# PÁGINA STREAMLIT
-# =========================================================
-
-def pagina_conciliacao_iss():
-
-    colh1, colh2 = st.columns([4, 1])
-
-    with colh1:
-        st.markdown('<div class="big-title">Conciliação do ISS Retido</div>', unsafe_allow_html=True)
-        st.markdown('<div class="sub-title">Automação fiscal personalizada para LIV SAÚDE.</div>', unsafe_allow_html=True)
-
-    st.markdown("---")
-
-    st.subheader("Upload dos Documentos")
-
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        file_fortaleza = st.file_uploader("📄 NFS Fortaleza", type=["xlsx"])
-
-    with col2:
-        file_vr = st.file_uploader("📄 NFS Volta Redonda", type=["xls", "xlsx"])
-
-    with col3:
-        file_razao = st.file_uploader("📊 Razão Contábil", type=["csv", "xls", "xlsx"])
-
-
-    if 'logs' not in st.session_state:
-        st.session_state.logs = []
-
-    if 'progress' not in st.session_state:
-        st.session_state.progress = 0
-
-
-    def progress_cb(pct, msg=None):
-
-        st.session_state.progress = int(pct)
-
-        if msg:
-            st.session_state.logs.append(f"{pct}% - {msg}")
-
-
-    if st.button("🚀 Processar"):
-
-        st.session_state.logs = []
-        st.session_state.progress = 0
-
-
-        with st.spinner("Executando conciliação..."):
-
-            df_pref, df_fin, excel_buf, logs = conciliar_notas(
-                file_fortaleza,
-                file_vr,
-                file_razao,
-                progress_callback=progress_cb
-            )
-
-            for l in logs:
-                st.session_state.logs.append(l)
-
-            st.success("Conciliação concluída!")
-            
-            # 1️⃣ Log de execução
-            #st.subheader("📘 Log de Execução")
-            #for l in st.session_state.logs[-200:]:
-            #    st.write("•", l)
-
-            # 2️⃣ Resumo da conciliação
-            st.markdown("### 📊 Resumo da Conciliação")
-
-            col1, col2 = st.columns(2)
-
-            # Resumo da Prefeitura
-            with col1:
-                st.markdown("#### 🏛️ Prefeitura")
-
-                total_pref = len(df_pref)
-                validados_pref = (df_pref['Status_Validacao'] == 'Validado').sum()
-                nao_encontrados_pref = (df_pref['Status_Validacao'] == 'Não Encontrado').sum()
-
-                st.metric("Total de registros", total_pref)
-                st.metric("✅ Validados", validados_pref)
-                st.metric("❌ Não encontrados", nao_encontrados_pref)
-
-            # Resumo do Financeiro
-            with col2:
-                st.markdown("#### 💰 Financeiro")
-
-                total_fin = len(df_fin)
-                validados_fin = (df_fin['Status_Validacao'] == 'Validado').sum()
-                nao_encontrados_fin = (df_fin['Status_Validacao'] == 'Não Encontrado').sum()
-
-                st.metric("Total de registros", total_fin)
-                st.metric("✅ Validados", validados_fin)
-                st.metric("❌ Não encontrados", nao_encontrados_fin)
-
-            # 3️⃣ Botão para baixar planilha  
-            if excel_buf:
-                st.download_button(
-                    "📥 Baixar Planilha Conciliada",
-                    data=excel_buf.getvalue(),
-                    file_name="Planilha Conciliada.xlsx"
-                )
-
-
-
-
-
-
-
-
-
-
-
-
-
