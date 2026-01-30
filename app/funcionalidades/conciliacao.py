@@ -6,8 +6,6 @@ import openpyxl
 from openpyxl.styles import PatternFill
 from openpyxl.formatting.rule import CellIsRule
 from io import BytesIO
-import re
-
 
 # =========================================================
 # PÁGINA — CONCILIAÇÃO ISS (INTERFACE ORIGINAL)
@@ -95,41 +93,14 @@ def preparar_dataframe_fortaleza(file_like):
     return merged_df
 
 def preparar_dataframe_vr(file_like):
-
     try:
-        file_like.seek(0)
-
-        # Lê sem assumir header
-        df_raw = pd.read_excel(file_like, header=None)
-
+        df = pd.read_excel(file_like, skiprows=16)
     except Exception:
-        return pd.DataFrame()
-
-    # Procura a linha que contém "CNPJ" ou "Razão"
-    header_row = None
-
-    for i in range(min(30, len(df_raw))):
-        row = df_raw.iloc[i].astype(str).str.upper()
-
-        if (
-            row.str.contains("CNPJ").any()
-            or row.str.contains("RAZ").any()
-            or row.str.contains("NOTA").any()
-        ):
-            header_row = i
-            break
-
-    if header_row is None:
-        return pd.DataFrame()
-
-    # Releitura usando header correto
-    file_like.seek(0)
-
-    df = pd.read_excel(
-        file_like,
-        header=header_row
-    )
-
+        try:
+            file_like.seek(0)
+            df = pd.read_excel(file_like)
+        except Exception:
+            return pd.DataFrame()
     rename_map = {
         'CNPJ Prestador': 'CPF/CNPJ Prestador',
         'Razão Social': 'Razão Social/Nome do Prestador',
@@ -140,28 +111,18 @@ def preparar_dataframe_vr(file_like):
         'Retido': 'ISS Retido',
         'Status': 'Status Doc.'
     }
-
-    df = df.rename(columns={k: v for k, v in rename_map.items() if k in df.columns})
-
-    df = df.dropna(how='all')
-
+    df = df.rename(columns={k: v for k, v in rename_map.items() if k in df.columns}).copy()
     if 'Razão Social/Nome do Prestador' in df.columns:
         df = df.dropna(subset=['Razão Social/Nome do Prestador'])
-
     if 'CPF/CNPJ Prestador' in df.columns:
         df['CPF/CNPJ Prestador'] = df['CPF/CNPJ Prestador'].astype(str)
-
     if 'Número' in df.columns:
         df['Número'] = df['Número'].astype(str).str.replace(r'\.0$', '', regex=True)
-
+    df['Origem'] = 'Volta Redonda'
     if 'Valor do ISS' in df.columns:
         df['Valor do ISS'] = pd.to_numeric(df['Valor do ISS'], errors='coerce')
-
     if 'Valor dos Serviços' in df.columns:
         df['Valor dos Serviços'] = pd.to_numeric(df['Valor dos Serviços'], errors='coerce')
-
-    df['Origem'] = 'Volta Redonda'
-
     return df
 
 def unificar_dataframes(df1, df2):
@@ -212,10 +173,6 @@ def limpar_df_prefeitura(df):
         df['Número'] = df['Número'].astype(str).str.replace(r'\.0$', '', regex=True)
     if 'Valor do ISS' in df.columns:
         df['Valor do ISS'] = pd.to_numeric(df['Valor do ISS'], errors='coerce')
-
-    if 'Número' in df.columns:
-    df['Número'] = df['Número'].apply(limpar_numero_nota)
-
     return df
 
 def limpar_df_financeiro(df):
@@ -248,61 +205,29 @@ def limpar_df_financeiro(df):
              df['Crédito'] = parse_moeda_brasil_robusto(df['Crédito'])
     else:
         df['Crédito'] = np.nan
-
-    if 'Número' in df.columns:
-    df['Número'] = df['Número'].apply(limpar_numero_nota)
-
+        
     return df
-
-def limpar_numero_nota(valor):
-    if pd.isna(valor):
-        return ""
-
-    v = str(valor)
-
-    # Remove tudo que não for número
-    v = re.sub(r'[^0-9]', '', v)
-
-    # Remove zeros à esquerda
-    v = v.lstrip('0')
-
-    return v
-
 
 def criar_ids(df, numero_col, valor_col):
     if df is None or df.empty:
         return df
-
     df_temp = df.copy()
-
-    if numero_col not in df_temp.columns:
-        df_temp['ID'] = ""
+    if numero_col not in df_temp.columns or valor_col not in df_temp.columns:
+        if numero_col in df_temp.columns:
+            df_temp['ID'] = df_temp[numero_col].astype(str).str.replace(r'\.0$', '', regex=True)
+        else:
+            df_temp['ID'] = ""
         return df_temp
-
-    numero = (
-        df_temp[numero_col]
-        .astype(str)
-        .str.replace(r'\.0$', '', regex=True)
-        .str.strip()
-    )
-
-    if valor_col in df_temp.columns:
-        valor = (
-            pd.to_numeric(df_temp[valor_col], errors='coerce')
-            .fillna(0)
-            .round(2)
-            .map(lambda x: f"{x:.2f}")
-        )
-    else:
-        valor = ""
-
-    df_temp['ID'] = numero + "_" + valor
-
-    return df_temp
     
-    st.write("PREFEITURA", df_prefeitura[['Número','Valor do ISS','ID']].head())
-    st.write("FINANCEIRO", df_financeiro[['Número','Crédito','ID']].head())
+    # Tratamento para garantir que valor seja string limpa
+    if df_temp[valor_col].dtype in ['float64', 'int64']:
+         valor_str = df_temp[valor_col].astype(str).str.replace(r'\.0$', '', regex=True)
+    else:
+         valor_str = df_temp[valor_col].astype(str)
 
+    numero_str = df_temp[numero_col].astype(str).str.replace(r'\.0$', '', regex=True)
+    df_temp['ID'] = numero_str + valor_str
+    return df_temp
 
 def aplicar_validacao(df1, df2):
     if df1 is None:
@@ -489,6 +414,32 @@ def conciliar_notas(file_fortaleza=None, file_vr=None, file_razao=None, progress
     # =========================================================
     # RESUMO DA CONCILIAÇÃO
     # =========================================================
+    st.markdown("### 📊 Resumo da Conciliação")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("#### 🏛️ Prefeitura")
+
+        total_pref = len(df_prefeitura_valid)
+        validados_pref = (df_prefeitura_valid['Status_Validacao'] == 'Validado').sum()
+        nao_encontrados_pref = (df_prefeitura_valid['Status_Validacao'] == 'Não Encontrado').sum()
+
+        st.metric("Total de registros", total_pref)
+        st.metric("✅ Validados", validados_pref)
+        st.metric("❌ Não encontrados", nao_encontrados_pref)
+
+    with col2:
+        st.markdown("#### 💰 Financeiro")
+
+        total_fin = len(df_financeiro_valid)
+        validados_fin = (df_financeiro_valid['Status_Validacao'] == 'Validado').sum()
+        nao_encontrados_fin = (df_financeiro_valid['Status_Validacao'] == 'Não Encontrado').sum()
+
+        st.metric("Total de registros", total_fin)
+        st.metric("✅ Validados", validados_fin)
+        st.metric("❌ Não encontrados", nao_encontrados_fin)
+
 def pagina_conciliacao_iss():
 
     colh1, colh2 = st.columns([4,1])
@@ -578,9 +529,3 @@ def pagina_conciliacao_iss():
                     "📥 Baixar Planilha Conciliada",
                     data=excel_buf.getvalue(),
                     file_name="Planilha Conciliada.xlsx"
-                )
-
-
-
-
-
