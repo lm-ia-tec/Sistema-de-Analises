@@ -212,23 +212,34 @@ def limpar_df_financeiro(df):
 def criar_ids(df, numero_col, valor_col):
     if df is None or df.empty:
         return df
-    df_temp = df.copy()
-    if numero_col not in df_temp.columns or valor_col not in df_temp.columns:
-        if numero_col in df_temp.columns:
-            df_temp['ID'] = df_temp[numero_col].astype(str).str.replace(r'\.0$', '', regex=True)
-        else:
-            df_temp['ID'] = ""
-        return df_temp
-    
-    # Tratamento para garantir que valor seja string limpa
-    if df_temp[valor_col].dtype in ['float64', 'int64']:
-         valor_str = df_temp[valor_col].astype(str).str.replace(r'\.0$', '', regex=True)
-    else:
-         valor_str = df_temp[valor_col].astype(str)
 
-    numero_str = df_temp[numero_col].astype(str).str.replace(r'\.0$', '', regex=True)
-    df_temp['ID'] = numero_str + valor_str
+    df_temp = df.copy()
+
+    if numero_col not in df_temp.columns:
+        df_temp['ID'] = ""
+        return df_temp
+
+    numero = (
+        df_temp[numero_col]
+        .astype(str)
+        .str.replace(r'\.0$', '', regex=True)
+        .str.strip()
+    )
+
+    if valor_col in df_temp.columns:
+        valor = (
+            pd.to_numeric(df_temp[valor_col], errors='coerce')
+            .fillna(0)
+            .round(2)
+            .map(lambda x: f"{x:.2f}")
+        )
+    else:
+        valor = ""
+
+    df_temp['ID'] = numero + "_" + valor
+
     return df_temp
+
 
 def aplicar_validacao(df1, df2):
     if df1 is None:
@@ -505,4 +516,5 @@ def pagina_conciliacao_iss():
                     data=excel_buf.getvalue(),
                     file_name="Planilha Conciliada.xlsx"
                 )
+
 
