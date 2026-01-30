@@ -95,14 +95,41 @@ def preparar_dataframe_fortaleza(file_like):
     return merged_df
 
 def preparar_dataframe_vr(file_like):
+
     try:
-        df = pd.read_excel(file_like, skiprows=16)
+        file_like.seek(0)
+
+        # Lê sem assumir header
+        df_raw = pd.read_excel(file_like, header=None)
+
     except Exception:
-        try:
-            file_like.seek(0)
-            df = pd.read_excel(file_like)
-        except Exception:
-            return pd.DataFrame()
+        return pd.DataFrame()
+
+    # Procura a linha que contém "CNPJ" ou "Razão"
+    header_row = None
+
+    for i in range(min(30, len(df_raw))):
+        row = df_raw.iloc[i].astype(str).str.upper()
+
+        if (
+            row.str.contains("CNPJ").any()
+            or row.str.contains("RAZ").any()
+            or row.str.contains("NOTA").any()
+        ):
+            header_row = i
+            break
+
+    if header_row is None:
+        return pd.DataFrame()
+
+    # Releitura usando header correto
+    file_like.seek(0)
+
+    df = pd.read_excel(
+        file_like,
+        header=header_row
+    )
+
     rename_map = {
         'CNPJ Prestador': 'CPF/CNPJ Prestador',
         'Razão Social': 'Razão Social/Nome do Prestador',
@@ -113,18 +140,28 @@ def preparar_dataframe_vr(file_like):
         'Retido': 'ISS Retido',
         'Status': 'Status Doc.'
     }
-    df = df.rename(columns={k: v for k, v in rename_map.items() if k in df.columns}).copy()
+
+    df = df.rename(columns={k: v for k, v in rename_map.items() if k in df.columns})
+
+    df = df.dropna(how='all')
+
     if 'Razão Social/Nome do Prestador' in df.columns:
         df = df.dropna(subset=['Razão Social/Nome do Prestador'])
+
     if 'CPF/CNPJ Prestador' in df.columns:
         df['CPF/CNPJ Prestador'] = df['CPF/CNPJ Prestador'].astype(str)
+
     if 'Número' in df.columns:
         df['Número'] = df['Número'].astype(str).str.replace(r'\.0$', '', regex=True)
-    df['Origem'] = 'Volta Redonda'
+
     if 'Valor do ISS' in df.columns:
         df['Valor do ISS'] = pd.to_numeric(df['Valor do ISS'], errors='coerce')
+
     if 'Valor dos Serviços' in df.columns:
         df['Valor dos Serviços'] = pd.to_numeric(df['Valor dos Serviços'], errors='coerce')
+
+    df['Origem'] = 'Volta Redonda'
+
     return df
 
 def unificar_dataframes(df1, df2):
@@ -542,6 +579,7 @@ def pagina_conciliacao_iss():
                     data=excel_buf.getvalue(),
                     file_name="Planilha Conciliada.xlsx"
                 )
+
 
 
 
